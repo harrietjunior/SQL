@@ -7,7 +7,7 @@ Takes the name of a table as parameter, checks validity, returns database and ta
 */
 
 
-ALTER PROCEDURE [dbo].[DataSourceCheck] 
+CREATE PROCEDURE [dbo].[DataSourceCheck] 
 	@dataSource varchar (100) = NULL,
 	@db varchar(50) = NULL output,
 	@table varchar(100) = NULL output
