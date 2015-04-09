@@ -119,7 +119,3 @@ BEGIN
 END
 
 SET @tableHTML = '<table border="1" cellspacing="0" cellpadding="5">' + @html + '</table><br>'; 
-
-DECLARE @sprocName varchar(200)
-SET @sprocName = Meta.dbo.GetSprocName (NULL, DB_NAME(), SCHEMA_NAME(), OBJECT_NAME (@@PROCID))
-PRINT 'END ' + @sprocName
