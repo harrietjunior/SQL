@@ -1,3 +1,14 @@
+/*
+
+Author: Leigh Haynes
+Date: February 2015
+Notes: takes a table name as parameter and returns a string that contains html markup to display the table contents as an html table.
+
+
+
+*/
+
+
 CREATE PROCEDURE [dbo].[HtmlTable]
 	@data_source varchar (100) = NULL,
 	@tableHTML varchar(max) OUTPUT
@@ -15,20 +26,20 @@ DECLARE
 --use procedure DataSourceCheck to see if @data_source is valid
 EXEC dbo.DataSourceCheck @data_source, @db output, @table output;
 	
-IF @db is NULL --if the data source is not good, the @table variable holds info as to the problem.
+IF @db is NULL --if the data source is not good, @db comes back NULL and @table holds info as to the problem.
 BEGIN
 	SET @tableHtml = @table;
 	RETURN;
 END;
 
---We have a good table. Get the column names from the information_schema
+--We have a good table. Use information_schema metadata for table to get column names.
 IF OBJECT_ID ('tempdb..##columnNames') IS not null DROP TABLE ##columnNames;
 CREATE table ##columnNames (column_name varchar(50), position int identity);
 
 SET @sql = 'USE ' + @db + '; INSERT into ##columnNames SELECT column_name from information_schema.columns where table_name = ''' + @table + ''' order by ordinal_position';
 EXEC master.sys.sp_executesql @sql;
 
---now use column names to set up a temp table with the proper number of field
+--use ##columnNames to create a temp table with the proper number of fields to hold data
 IF OBJECT_ID ('tempdb..##columnPivot') IS not null DROP TABLE ##columnPivot;
 CREATE table ##columnPivot (f1 varchar(200));
 
@@ -41,13 +52,14 @@ DECLARE
 	@html varchar(max) = '';
 	
 SET @fieldct = (SELECT COUNT(*) from ##columnNames);
-WHILE @i <= @fieldct
+WHILE @i <= @fieldct --loop through adding a field to ##columnPivot for each column. Max field len is 200.
 BEGIN
 	SET @sql = 'ALTER table ##columnPivot ADD f' + cast (@i as varchar(2)) + ' varchar(200)';
 	EXEC master.sys.sp_executesql @sql;
 	SET @i = @i + 1;
 END
 
+--at this point, ##columnPivot is constructed but empty.
 SET @sql = 'INSERT into ##columnPivot SELECT ';
 SET @i = 1;
 SET @fieldct = (SELECT count(*) from ##columnNames);
