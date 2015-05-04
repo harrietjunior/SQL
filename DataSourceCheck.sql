@@ -1,11 +1,9 @@
+
 /*
-
-Leigh Haynes
-March 2015
-Takes the name of a table as parameter, checks validity, returns database and table name if valid.
-
+Author: Leigh Haynes
+Date: February 2015
+Notes: Called by HtmlTable and CreateCsvFile to check validity of data source that is going to turn into an HTML table or a CSV file.
 */
-
 
 CREATE PROCEDURE [dbo].[DataSourceCheck] 
 	@dataSource varchar (100) = NULL,
@@ -28,7 +26,8 @@ SET @buffer = @dataSource;
 --cannot accesss a local temp table. Return.
 IF SUBSTRING (@buffer, 1, 1) = '#' and SUBSTRING (@buffer, 2, 1) <> '#'
 BEGIN
-	SET @table = '<br>Cannot access local temp table ' + @dataSource + '.<br>';
+	--use LEFT 25 to make sure the local temp table name isn't too long for the @table varchar(100) variable.
+	SET @table = '<br>Table ' + LEFT (@dataSource, 25) + ' is a local temp table. Must use a global temp or permanent table.<br>';
 	RETURN;
 END;
 
@@ -63,7 +62,7 @@ SET @objectId = OBJECT_ID (@object, 'U');
 IF @objectId is NULL 
 BEGIN
 	SET @db = NULL;
-	SET @table = '<br>Data source ' + @dataSource + ' is invalid or improperly qualified.<br>';
+	SET @table = '<br>Table ' + @dataSource + ' does not exist or is improperly qualified.<br>';
 	RETURN;
 END;
 
