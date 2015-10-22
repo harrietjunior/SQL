@@ -1,3 +1,15 @@
+USE [Meta]
+GO
+
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+
+
 
 /*
 Author: Leigh Haynes
@@ -12,6 +24,20 @@ CREATE PROCEDURE [dbo].[HtmlTable]
 	@tableHTML varchar(max) OUTPUT
 AS
 
+/*
+
+SET NOCOUNT ON
+
+DECLARE @TableHtml varchar(max)
+EXEC dbo.HtmlTable
+	--'##x', 
+	'email.dbo.strongmaillookup',
+	@TableHTML output
+PRINT @TableHtml
+
+
+*/
+
 SET NOCOUNT ON;
 
 DECLARE 
@@ -22,7 +48,7 @@ DECLARE
 	@sql nvarchar(1000);
 
 --use procedure DataSourceCheck to see if @data_source is valid
-EXEC Meta.dbo.DataSourceCheck @data_source, @db output, @table output;
+EXEC dbo.DataSourceCheck @data_source, @db output, @table output;
 	
 IF @db is NULL --if the data source is not good, @db comes back NULL, and @table holds info as to the problem (either the table does not exist, or it is empty).
 BEGIN
@@ -30,33 +56,46 @@ BEGIN
 	RETURN;
 END;
 
---We have a good table. Use information_schema metadata for table to get column names.
-IF OBJECT_ID ('tempdb..##columnNames') IS not null DROP TABLE ##columnNames;
-CREATE table ##columnNames (column_name varchar(50), position int identity);
+--we are doing this because we are finding that different procedures are accessing HtmlTable simultaneously, and the data from different procedures is becoming intermingled.
+DECLARE @i int = 1
+WHILE (OBJECT_ID ('tempdb..##columnNames') IS NOT NULL
+	OR OBJECT_ID ('tempdb..##columnPivot') IS NOT NULL)
+	and @i <= 30 
+BEGIN
+	WAITFOR DELAY '00:00:02'
+	SET @i = @i + 1
+END
 
+PRINT @i
+--PRINT getdate()
+--PRINT @data_source
+IF OBJECT_ID ('tempdb..##columnNames') IS NOT NULL DROP table ##columnNames
+IF OBJECT_ID ('tempdb..##columnPivot') IS NOT NULL DROP table ##columnPivot
+CREATE table ##columnNames (column_name varchar(50), position int identity)
+CREATE table ##columnPivot (id_key int identity, f1 varchar(300))
+
+
+--We have a good table. Use information_schema metadata for table to get column names.
 SET @sql = 'USE ' + @db + '; INSERT into ##columnNames SELECT column_name from information_schema.columns where table_name = ''' + @table + ''' order by ordinal_position';
 EXEC master.sys.sp_executesql @sql;
 
---use ##columnNames to create table ##columnPivot with the proper number of fields to hold data
-IF OBJECT_ID ('tempdb..##columnPivot') IS not null DROP TABLE ##columnPivot;
-CREATE table ##columnPivot (f1 varchar(200));
-
+--loop through ##columnNames to alter table ##columnPivot to have the proper number of fields to hold data
 DECLARE 
-	@i int = 2,
 	@fieldct int, 
 	@column varchar(50), 
-	@field varchar(200),
-	@value varchar(100), 
+	@field varchar(300),
+	@value varchar(300), 
 	@html varchar(max) = '';
-	
+
+SET @i = 2;	
 SET @fieldct = (SELECT COUNT(*) from ##columnNames);
-WHILE @i <= @fieldct --loop through adding a field to ##columnPivot for each column. Max field len is 200.
+WHILE @i <= @fieldct --loop through adding a field to ##columnPivot for each column. Max field len is 300.
 BEGIN
-	SET @sql = 'ALTER table ##columnPivot ADD f' + cast (@i as varchar(2)) + ' varchar(200)';
+	SET @sql = 'ALTER table ##columnPivot ADD f' + cast (@i as varchar(2)) + ' varchar(300)';
 	EXEC master.sys.sp_executesql @sql;
 	SET @i = @i + 1;
 END
---##columnPivot is constructed but empty. Columns are named f1, f2, f3, etc
+--##columnPivot is constructed but empty. Columns are named id_key, f1, f2, f3, etc
 
 --construct dynamic SQL string that will be executed to populate ##columnPivot
 SET @sql = 'INSERT into ##columnPivot SELECT ';
@@ -66,13 +105,13 @@ SET @fieldct = (SELECT count(*) from ##columnNames);
 WHILE @i <= @fieldct - 1
 BEGIN
 	SET @column = (SELECT top 1 column_name from ##columnNames where position = cast (@i as varchar(2)));
-	SET @field = 'CAST([' + @column + '] as varchar(200)),';
+	SET @field = 'CAST([' + @column + '] as varchar(300)),';
 	SET @sql = @sql + @field;
 	SET @i = @i + 1;
 END
 
 SET @column = (SELECT top 1 column_name from ##columnNames where position = @fieldct);
-SET @field = 'CAST([' + @column + '] as varchar(200)) FROM ' + @data_source;
+SET @field = 'CAST([' + @column + '] as varchar(300)) FROM ' + @data_source;
 SET @sql = @sql + @field; --@sql now contains the SQL statement that will insert data from @data_source into ##columnPivot
 
 --execute @sql to insert into ##columnPivot the data from @data_source table
@@ -102,14 +141,11 @@ END
 SET @html = '<tr>' + @html + '</tr>'; --now @html contains the header row of the output table
 
 
---populate ##columnPivot by working through the data row by row. 
-ALTER table ##columnPivot add id_key int identity;
-
 DECLARE 
 	@j int = 1, 
 	@fieldcnt int, 
-	@cell varchar(100), 
-	@row varchar(500) = '';
+	@cell varchar(310), 
+	@row varchar(3000) = '';
 
 SET @i = 1;
 SET @fieldcnt = (SELECT count(*) from ##columnNames);
@@ -121,7 +157,7 @@ BEGIN
 	WHILE @j <= @fieldcnt --this loop executes one time for each column (cell) of data
 	BEGIN
 		SET @sql = 'SELECT @value = f' + cast (@j as varchar(2)) + ' from ##columnPivot where id_key = ' + cast (@i as varchar(2));
-		EXEC master.sys.sp_executesql @sql, N'@value varchar(200) OUTPUT', @value OUTPUT;
+		EXEC master.sys.sp_executesql @sql, N'@value varchar(300) OUTPUT', @value OUTPUT;
 		SET @cell = '<td>' + ISNULL (@value, '<br>') + '</td>'; --need to use <br> if the cell is empty
 		SET @row = @row + @cell;
 		SET @j = @j + 1;
@@ -134,4 +170,14 @@ BEGIN
 END
 
 SET @tableHTML = '<table border="1" cellspacing="0" cellpadding="5">' + @html + '</table><br>'; 
+
+IF OBJECT_ID ('tempdb..##columnNames') IS NOT NULL drop table ##columnNames
+IF OBJECT_ID ('tempdb..##columnPivot') IS NOT NULL drop table ##columnPivot
+
+PRINT 'END ' + DB_NAME() + '.' + SCHEMA_NAME() + '.' + OBJECT_NAME (@@PROCID)
+
+
+
+
+GO
 
