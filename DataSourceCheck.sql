@@ -1,9 +1,22 @@
+USE [Meta]
+GO
+
+SET ANSI_NULLS ON
+GO
+
+SET QUOTED_IDENTIFIER ON
+GO
+
+
 
 /*
+
 Author: Leigh Haynes
 Date: February 2015
 Notes: Called by HtmlTable and CreateCsvFile to check validity of data source that is going to turn into an HTML table or a CSV file.
+
 */
+
 
 CREATE PROCEDURE [dbo].[DataSourceCheck] 
 	@dataSource varchar (100) = NULL,
@@ -11,6 +24,21 @@ CREATE PROCEDURE [dbo].[DataSourceCheck]
 	@table varchar(100) = NULL output
 
 AS
+
+/*
+
+SET NOCOUNT ON
+
+DECLARE @table varchar(200), @db varchar(50)
+EXEC DataSourceCheck
+	'##x', 
+	--'email.dbo.strongmaillookup',
+	@db output,
+	@table output
+PRINT @db
+PRINT @Table
+
+*/
 
 DECLARE 
 	@buffer varchar(100),
@@ -27,7 +55,7 @@ SET @buffer = @dataSource;
 IF SUBSTRING (@buffer, 1, 1) = '#' and SUBSTRING (@buffer, 2, 1) <> '#'
 BEGIN
 	--use LEFT 25 to make sure the local temp table name isn't too long for the @table varchar(100) variable.
-	SET @table = '<br>Table ' + LEFT (@dataSource, 25) + ' is a local temp table. Must use a global temp or permanent table.<br>';
+	SET @table = 'Table ' + LEFT (@dataSource, 25) + ' is a local temp table. Must use a global temp or permanent table.';
 	RETURN;
 END;
 
@@ -62,7 +90,7 @@ SET @objectId = OBJECT_ID (@object, 'U');
 IF @objectId is NULL 
 BEGIN
 	SET @db = NULL;
-	SET @table = '<br>Table ' + @dataSource + ' does not exist or is improperly qualified.<br>';
+	SET @table = 'Table ' + @dataSource + ' does not exist or is improperly qualified.';
 	RETURN;
 END;
 
@@ -75,3 +103,8 @@ BEGIN
 	SET @table = '<br>Table ' + @dataSource + ' is empty.<br>';
 	RETURN;
 END;
+
+
+
+GO
+
