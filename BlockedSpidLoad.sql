@@ -70,8 +70,8 @@ BEGIN TRY
 	WHERE blocking.blocked <> 0
 	AND blocked.spid <> blocking.spid
 	AND blocked.spid >= 50 --spids lower than 50 are system spids	
-	--AND DATEDIFF(mi, blocked.last_batch, getdate()) > 1 -- show blockingSpid more than 1 minute  
-	--AND blocked.loginame not like 'IDI_Replication%'
+	AND (blocked.waitTime >= 60000 -- 60 seconds
+		OR DATEDIFF(mi, blocked.last_batch, getdate()) > 1) -- 1 minute
 	
 	--SELECT * from master.dbo.sysprocesses order by blocked desc
 	
@@ -169,8 +169,7 @@ BEGIN TRY
 		where (waitTime >= 60000 -- 60 seconds
 					OR DATEDIFF(mi, blockedLastBatch, currentDateTime) > 1) -- 1 minute
 		and LoadDate is NULL
-		--SELECT * from ##blocksTable
-		
+
 		SET @rcd_cnt = @@rowcount
 		PRINT @rcd_cnt
 
@@ -187,7 +186,7 @@ BEGIN TRY
 											
 			EXEC dbo.EmailSend
 				--SELECT * from Meta.dbo.EmailRecipients where Subject like 'Blocked%'
-				@subject = 'Blocked Spid(s) on SQLDM',
+				@subject = 'Blocked Spid(s)',
 				@rcd_cnt = @rcd_cnt,
 				@body_format = 'HTML',	
 				@body = @tableHtml,
@@ -199,7 +198,7 @@ BEGIN TRY
 END TRY
 BEGIN CATCH
 	DECLARE @errorNumber int = ERROR_NUMBER(), @errorMsg VARCHAR(1000) = ERROR_MESSAGE();
-	EXEC dbo.LogError @errorNumber, @errorMsg, @sprocName;
+	EXEC dbo.ErrorLog @errorNumber, @errorMsg;
 END CATCH
 PRINT 'END ' + @sprocName;
 
